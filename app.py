@@ -1,10 +1,3 @@
-This is a great refinement for a practical, on-the-go tool. Forcing explicit inputs rather than relying on defaults prevents accidental miscalculations if you forget to update a field during a fast-paced meeting.
-
-To achieve this, I have set all inputs to initialize as empty (`None`). The app will now politely ask you to enter the parameters, and the results will only generate once all fields are filled. I've also swapped the Source MVA for explicit HV and LV maximum fault current inputs, and removed the working transformers variable entirely.
-
-Here is the updated, blank-slate version of your code:
-
-```python
 import streamlit as st
 import math
 
@@ -216,5 +209,3 @@ else:
     # Prompt the user to enter data if the fields are empty
     st.markdown('<div class="prompt-msg">Please fill in all 5 system inputs above to generate sizing results.</div>', unsafe_allow_html=True)
 
-
-```
