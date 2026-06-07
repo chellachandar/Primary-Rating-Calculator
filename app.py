@@ -59,8 +59,10 @@ st.markdown("""
     .prompt-msg { font-size: 0.85rem; color: #f57f17; background: #fff8e1; padding: 0.8rem; border-radius: 8px; border: 1px solid #f9a825; text-align: center; margin-top: 1rem; font-weight: 500; }
     
     /* Formula boxes */
-    .formula-box { background: #f9fbfe; border: 1px dashed #7ab8d4; padding: 0.8rem; border-radius: 6px; font-size: 0.85rem; color: #0a2a42; margin-bottom: 0.8rem; }
-    .formula-title { font-weight: 700; color: #03223a; margin-bottom: 0.4rem; font-size: 0.85rem; }
+    .formula-box { background: #f9fbfe; border: 1px dashed #7ab8d4; padding: 1rem; border-radius: 8px; font-size: 0.85rem; color: #0a2a42; margin-bottom: 1rem; }
+    .formula-title { font-weight: 700; color: #03223a; margin-bottom: 0.6rem; font-size: 0.9rem; }
+    .formula-math { font-family: 'Courier New', Courier, monospace; font-size: 0.95rem; font-weight: 600; color: #03223a; background: #e8f4fa; padding: 0.4rem 0.6rem; border-radius: 4px; display: inline-block; margin-bottom: 0.8rem; }
+    .formula-calc { margin-bottom: 0.3rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -178,30 +180,40 @@ if submitted:
 
         st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-        # ── KEY FORMULAS ────────────────────────────────────────────────
+        # ── KEY FORMULAS (Bulletproof HTML) ─────────────────────────────
         st.markdown("## 🧮 Key Formulas & Math")
         
-        st.markdown("""
+        # 1. Source Short-Circuit MVA
+        st.markdown(f"""
         <div class="formula-box">
             <div class="formula-title">1. Source Short-Circuit MVA</div>
-            $$MVA_{SC} = \sqrt{3} \times V_{sys} \times I_{SC}$$
+            <div class="formula-math">
+                MVA<sub>SC</sub> = √3 × V<sub>sys</sub> × I<sub>SC</sub>
+            </div>
+            <div class="formula-calc">
+                <b>HV:</b> √3 × {hv_kv} × {hv_fault_ka} = <b>{hv_source_mva:.1f} MVA</b>
+            </div>
+            <div class="formula-calc">
+                <b>LV:</b> √3 × {lv_kv} × {lv_fault_ka} = <b>{lv_source_mva:.1f} MVA</b>
+            </div>
         </div>
         """, unsafe_allow_html=True)
-        
-        st.markdown(f"**HV:** $\\sqrt{{3}} \\times {hv_kv} \\times {hv_fault_ka} = $ **{hv_source_mva:.1f} MVA**")
-        st.markdown(f"**LV:** $\\sqrt{{3}} \\times {lv_kv} \\times {lv_fault_ka} = $ **{lv_source_mva:.1f} MVA**")
-        
-        st.markdown("<br>", unsafe_allow_html=True)
 
-        st.markdown("""
+        # 2. Transformer Full-Load Current
+        st.markdown(f"""
         <div class="formula-box">
             <div class="formula-title">2. Transformer Full-Load Current</div>
-            $$I_{FL} = \frac{S_{TRF} \times 1000}{\sqrt{3} \times V_{sys}}$$
+            <div class="formula-math">
+                I<sub>FL</sub> = (S<sub>TRF</sub> × 1000) / (√3 × V<sub>sys</sub>)
+            </div>
+            <div class="formula-calc">
+                <b>HV:</b> ({tr_mva} × 1000) / (√3 × {hv_kv}) = <b>{hv_fl_current:.0f} A</b>
+            </div>
+            <div class="formula-calc">
+                <b>LV:</b> ({tr_mva} × 1000) / (√3 × {lv_kv}) = <b>{lv_fl_current:.0f} A</b>
+            </div>
         </div>
         """, unsafe_allow_html=True)
-
-        st.markdown(f"**HV:** $({tr_mva} \\times 1000) / (\\sqrt{{3}} \\times {hv_kv}) = $ **{hv_fl_current:.0f} A**")
-        st.markdown(f"**LV:** $({tr_mva} \\times 1000) / (\\sqrt{{3}} \\times {lv_kv}) = $ **{lv_fl_current:.0f} A**")
 
     else:
         st.markdown('<div class="prompt-msg">Please fill in all 5 system inputs above to generate sizing results.</div>', unsafe_allow_html=True)
