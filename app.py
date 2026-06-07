@@ -1,3 +1,10 @@
+This is a great refinement for a practical, on-the-go tool. Forcing explicit inputs rather than relying on defaults prevents accidental miscalculations if you forget to update a field during a fast-paced meeting.
+
+To achieve this, I have set all inputs to initialize as empty (`None`). The app will now politely ask you to enter the parameters, and the results will only generate once all fields are filled. I've also swapped the Source MVA for explicit HV and LV maximum fault current inputs, and removed the working transformers variable entirely.
+
+Here is the updated, blank-slate version of your code:
+
+```python
 import streamlit as st
 import math
 
@@ -56,6 +63,7 @@ st.markdown("""
     .stExpander { border: 1px solid #7ab8d4 !important; border-radius: 8px !important; background-color: #ffffff; }
     .divider { border: none; border-top: 1px solid #d0e8f2; margin: 1.2rem 0 0.8rem; }
     .sub-note { font-size: 0.75rem; color: #5a8fa8; margin: 0.2rem 0 1rem; }
+    .prompt-msg { font-size: 0.85rem; color: #f57f17; background: #fff8e1; padding: 0.8rem; border-radius: 8px; border: 1px solid #f9a825; text-align: center; margin-top: 1rem; font-weight: 500; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -126,82 +134,87 @@ st.markdown("## System Inputs")
 
 col1, col2 = st.columns(2)
 with col1:
-    hv_kv      = st.selectbox("HV source voltage (kV)", options=[33.0, 66.0, 110.0, 132.0, 220.0, 400.0], index=2)
-    lv_kv      = st.selectbox("LV system voltage (kV)", options=[11.0, 22.0, 33.0, 66.0], index=2)
-    load_mva   = st.number_input("Total load demand (MVA)", value=40.0, step=1.0, min_value=0.1)
+    hv_kv    = st.selectbox("HV system voltage (kV)", options=[33.0, 66.0, 110.0, 132.0, 220.0, 400.0], index=None, placeholder="Select HV...")
+    lv_kv    = st.selectbox("LV system voltage (kV)", options=[11.0, 22.0, 33.0, 66.0], index=None, placeholder="Select LV...")
+    load_mva = st.number_input("Total load demand (MVA)", value=None, min_value=0.1, placeholder="e.g., 40.0")
 with col2:
-    source_mva = st.number_input("Source short-circuit (MVA)", value=1000.0, step=100.0, min_value=10.0)
-    n_working  = st.number_input("Working transformers", value=1, step=1, min_value=1)
+    hv_fault_ka = st.number_input("HV Max Fault (kA)", value=None, min_value=1.0, placeholder="e.g., 40.0")
+    lv_fault_ka = st.number_input("LV Max Fault (kA)", value=None, min_value=1.0, placeholder="e.g., 25.0")
 
-# ── CALCULATIONS ────────────────────────────────────────────────────
-SQRT3 = math.sqrt(3)
+# ── CONDITIONAL EXECUTION ───────────────────────────────────────────
+# Only run calculations if the user has provided all necessary inputs
+if hv_kv and lv_kv and load_mva and hv_fault_ka and lv_fault_ka:
 
-tr_mva_required = load_mva / n_working
+    # ── CALCULATIONS ────────────────────────────────────────────────
+    SQRT3 = math.sqrt(3)
 
-hv_fl_current = (tr_mva_required * 1000) / (SQRT3 * hv_kv)
-lv_fl_current = (tr_mva_required * 1000) / (SQRT3 * lv_kv)
+    hv_fl_current = (load_mva * 1000) / (SQRT3 * hv_kv)
+    lv_fl_current = (load_mva * 1000) / (SQRT3 * lv_kv)
 
-fault_ka_hv   = (source_mva * 1000) / (SQRT3 * hv_kv)
-fault_ka_lv   = (source_mva * 1000) / (SQRT3 * lv_kv)
+    CB_CURRENTS  = [630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000]
+    CB_BREAKING  = [16, 20, 25, 31.5, 40, 50, 63]
+    CT_RATIOS    = [200, 300, 400, 600, 800, 1000, 1200, 1500, 2000, 2500, 3000, 4000]
 
-CB_CURRENTS  = [630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000]
-CB_BREAKING  = [16, 20, 25, 31.5, 40, 50, 63]
-CT_RATIOS    = [200, 300, 400, 600, 800, 1000, 1200, 1500, 2000, 2500, 3000, 4000]
+    def next_standard(val, std_list):
+        for s in std_list:
+            if s >= val:
+                return s
+        return std_list[-1]
 
-def next_standard(val, std_list):
-    for s in std_list:
-        if s >= val:
-            return s
-    return std_list[-1]
+    hv_cb_current  = next_standard(hv_fl_current, CB_CURRENTS)
+    lv_cb_current  = next_standard(lv_fl_current, CB_CURRENTS)
+    
+    # CB Breaking is stepped up directly from the user's input fault current
+    hv_cb_breaking = next_standard(hv_fault_ka, CB_BREAKING)
+    lv_cb_breaking = next_standard(lv_fault_ka, CB_BREAKING)
+    
+    hv_ct_ratio    = next_standard(hv_fl_current, CT_RATIOS)
+    lv_ct_ratio    = next_standard(lv_fl_current, CT_RATIOS)
 
-hv_cb_current  = next_standard(hv_fl_current, CB_CURRENTS)
-lv_cb_current  = next_standard(lv_fl_current, CB_CURRENTS)
-hv_cb_breaking = next_standard(fault_ka_hv,   CB_BREAKING)
-lv_cb_breaking = next_standard(fault_ka_lv,   CB_BREAKING)
-hv_ct_ratio    = next_standard(hv_fl_current, CT_RATIOS)
-lv_ct_ratio    = next_standard(lv_fl_current, CT_RATIOS)
+    def result_row(label, value, unit):
+        st.markdown(f"""
+        <div class="result-card">
+            <span class="result-label">{label}</span>
+            <span>
+                <span class="result-value">{value}</span>
+                <span class="result-unit">{unit}</span>
+            </span>
+        </div>""", unsafe_allow_html=True)
 
-def result_row(label, value, unit):
-    st.markdown(f"""
-    <div class="result-card">
-        <span class="result-label">{label}</span>
-        <span>
-            <span class="result-value">{value}</span>
-            <span class="result-unit">{unit}</span>
-        </span>
-    </div>""", unsafe_allow_html=True)
+    # ── RESULTS ─────────────────────────────────────────────────────
+    st.markdown('<hr class="divider">', unsafe_allow_html=True)
+    st.markdown("## Results")
 
-# ── RESULTS ─────────────────────────────────────────────────────────
-st.markdown('<hr class="divider">', unsafe_allow_html=True)
-st.markdown("## Results")
+    st.markdown("### Transformer")
+    result_row("Required rating", f"{load_mva:.1f}", "MVA")
 
-st.markdown("### Transformer")
-result_row("Required rating (each)", f"{tr_mva_required:.1f}", "MVA")
+    st.markdown("### HV Side")
+    result_row("Full-load current", f"{hv_fl_current:.1f}", "A")
+    result_row("User provided fault", f"{hv_fault_ka:.1f}", "kA")
+    result_row("Recommended CB current", f"{hv_cb_current}", "A")
+    result_row("Recommended CB breaking", f"{hv_cb_breaking}", "kA")
+    result_row("Recommended CT ratio", f"{hv_ct_ratio} / 1", "A")
 
-st.markdown("### HV Side")
-result_row("Full-load current", f"{hv_fl_current:.1f}", "A")
-result_row("Fault current (3φ)", f"{fault_ka_hv:.2f}", "kA")
-result_row("Recommended CB current", f"{hv_cb_current}", "A")
-result_row("Recommended CB breaking", f"{hv_cb_breaking}", "kA")
-result_row("Recommended CT ratio", f"{hv_ct_ratio} / 1", "A")
+    st.markdown("### LV Side")
+    result_row("Full-load current", f"{lv_fl_current:.1f}", "A")
+    result_row("User provided fault", f"{lv_fault_ka:.1f}", "kA")
+    result_row("Recommended CB current", f"{lv_cb_current}", "A")
+    result_row("Recommended CB breaking", f"{lv_cb_breaking}", "kA")
+    result_row("Recommended CT ratio", f"{lv_ct_ratio} / 1", "A")
 
-st.markdown("### LV Side")
-result_row("Full-load current", f"{lv_fl_current:.1f}", "A")
-result_row("Fault current (3φ)", f"{fault_ka_lv:.2f}", "kA")
-result_row("Recommended CB current", f"{lv_cb_current}", "A")
-result_row("Recommended CB breaking", f"{lv_cb_breaking}", "kA")
-result_row("Recommended CT ratio", f"{lv_ct_ratio} / 1", "A")
+    st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-st.markdown('<hr class="divider">', unsafe_allow_html=True)
+    # ── QUICK SUMMARY FOR MEETING NOTES ─────────────────────────────
+    st.markdown("### 📝 Quick Summary")
+    st.info(
+        f"**Load:** {load_mva} MVA\n\n"
+        f"**HV ({hv_kv} kV):** {hv_cb_current} A CB, {hv_cb_breaking} kA Breaking\n\n"
+        f"**LV ({lv_kv} kV):** {lv_cb_current} A CB, {lv_cb_breaking} kA Breaking"
+    )
 
-# ── QUICK SUMMARY FOR MEETING NOTES ─────────────────────────────────
-st.markdown("### 📝 Quick Summary")
-st.info(
-    f"**Load:** {load_mva} MVA | **Transformers:** {n_working} × {tr_mva_required:.1f} MVA\n\n"
-    f"**HV ({hv_kv} kV):** {hv_cb_current} A CB, {hv_cb_breaking} kA Breaking\n\n"
-    f"**LV ({lv_kv} kV):** {lv_cb_current} A CB, {lv_cb_breaking} kA Breaking"
-)
-
-st.markdown('<p class="sub-note" style="text-align: center; margin-top: 1rem;">Fault MVA and CB requirements are based directly on the Source MVA input.<br>For preliminary review use only.</p>', unsafe_allow_html=True)
+else:
+    # Prompt the user to enter data if the fields are empty
+    st.markdown('<div class="prompt-msg">Please fill in all 5 system inputs above to generate sizing results.</div>', unsafe_allow_html=True)
 
 
+```
