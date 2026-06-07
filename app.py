@@ -204,4 +204,4 @@ st.info(
 
 st.markdown('<p class="sub-note" style="text-align: center; margin-top: 1rem;">Fault MVA and CB requirements are based directly on the Source MVA input.<br>For preliminary review use only.</p>', unsafe_allow_html=True)
 
-```
+
