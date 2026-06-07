@@ -128,7 +128,7 @@ with st.expander("📋 Conductor & Equipment Reference"):
 
 st.markdown('<hr class="divider" style="margin-top: 0.5rem;">', unsafe_allow_html=True)
 
-# ── INPUTS ──────────────────────────────────────────────────────────
+# ── MAIN SYSTEM INPUTS ──────────────────────────────────────────────
 st.markdown("## System Inputs")
 
 with st.form("input_form", border=False):
@@ -142,13 +142,10 @@ with st.form("input_form", border=False):
         lv_fault_ka = st.number_input("LV Max Fault (kA)", value=None, min_value=1.0, placeholder="e.g., 25.0")
         
     st.markdown('<br>', unsafe_allow_html=True)
-    submitted = st.form_submit_button("⚡ Calculate Results", type="primary", use_container_width=True)
+    submitted = st.form_submit_button("⚡ Calculate System Results", type="primary", use_container_width=True)
 
-# ── CONDITIONAL EXECUTION ───────────────────────────────────────────
 if submitted:
     if hv_kv and lv_kv and tr_mva and hv_fault_ka and lv_fault_ka:
-
-        # ── CALCULATIONS ────────────────────────────────────────────────
         SQRT3 = math.sqrt(3)
 
         hv_fl_current = (tr_mva * 1000) / (SQRT3 * hv_kv)
@@ -162,28 +159,22 @@ if submitted:
             html_str = f'<div class="result-card"><div><div class="result-label">{label}</div>{sub_html}</div><span><span class="result-value">{value}</span><span class="result-unit">{unit}</span></span></div>'
             st.markdown(html_str, unsafe_allow_html=True)
 
-        # ── RESULTS ─────────────────────────────────────────────────────
         st.markdown('<hr class="divider">', unsafe_allow_html=True)
         st.markdown("## Results")
         
         result_row("Transformer base rating", f"{tr_mva:.1f}", "MVA")
 
         res_col1, res_col2 = st.columns(2)
-        
         with res_col1:
             st.markdown("### HV Side")
             result_row("Full-load current", f"{hv_fl_current:.0f}", "A", "ONAN Base")
-
         with res_col2:
             st.markdown("### LV Side")
             result_row("Full-load current", f"{lv_fl_current:.0f}", "A", "ONAN Base")
 
         st.markdown('<hr class="divider">', unsafe_allow_html=True)
-
-        # ── KEY FORMULAS (Bulletproof HTML) ─────────────────────────────
         st.markdown("## 🧮 Key Formulas & Math")
         
-        # 1. Source Short-Circuit MVA
         st.markdown(f"""
         <div class="formula-box">
             <div class="formula-title">1. Source Short-Circuit MVA</div>
@@ -199,7 +190,6 @@ if submitted:
         </div>
         """, unsafe_allow_html=True)
 
-        # 2. Transformer Full-Load Current
         st.markdown(f"""
         <div class="formula-box">
             <div class="formula-title">2. Transformer Full-Load Current</div>
@@ -214,6 +204,49 @@ if submitted:
             </div>
         </div>
         """, unsafe_allow_html=True)
-
     else:
         st.markdown('<div class="prompt-msg">Please fill in all 5 system inputs above to generate sizing results.</div>', unsafe_allow_html=True)
+
+# ── BAY RATING CALCULATOR ───────────────────────────────────────────
+st.markdown('<hr class="divider" style="margin-top: 2rem;">', unsafe_allow_html=True)
+st.markdown("## 🔌 Bay Rating Calculator")
+
+with st.form("bay_form", border=False):
+    b_col1, b_col2 = st.columns(2)
+    with b_col1:
+        bay_kv = st.number_input("Bay Voltage (kV)", value=None, min_value=1.0, placeholder="e.g., 110.0")
+    with b_col2:
+        bay_amps = st.number_input("Bay Current (A)", value=None, min_value=1.0, placeholder="e.g., 1250.0")
+        
+    st.markdown('<br>', unsafe_allow_html=True)
+    bay_submitted = st.form_submit_button("⚡ Calculate Bay Rating", type="secondary", use_container_width=True)
+
+if bay_submitted:
+    if bay_kv and bay_amps:
+        bay_mva = (math.sqrt(3) * bay_kv * bay_amps) / 1000
+        
+        st.markdown(f"""
+        <div class="result-card" style="margin-top: 1rem; background-color: #f9fbfe;">
+            <div>
+                <div class="result-label">Calculated Bay Capacity</div>
+            </div>
+            <span>
+                <span class="result-value">{bay_mva:.2f}</span>
+                <span class="result-unit">MVA</span>
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown(f"""
+        <div class="formula-box" style="margin-top: 1rem;">
+            <div class="formula-title">Bay Rating Formula</div>
+            <div class="formula-math">
+                S<sub>Bay</sub> = (√3 × V<sub>sys</sub> × I<sub>Bay</sub>) / 1000
+            </div>
+            <div class="formula-calc">
+                (√3 × {bay_kv} × {bay_amps}) / 1000 = <b>{bay_mva:.2f} MVA</b>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="prompt-msg">Please enter both voltage and current to calculate the bay rating.</div>', unsafe_allow_html=True)
