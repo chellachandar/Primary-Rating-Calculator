@@ -24,13 +24,13 @@ st.markdown("""
     h3 { font-size: 0.9rem !important; font-weight: 600 !important; color: #0a2a42 !important; margin: 1rem 0 0.4rem !important; }
     
     /* Input styling */
-    .stNumberInput label, .stSelectbox label { font-size: 0.85rem !important; color: #03223a !important; font-weight: 500 !important; }
-    div[data-baseweb="input"] > div, div[data-baseweb="select"] > div {
+    .stNumberInput label { font-size: 0.85rem !important; color: #03223a !important; font-weight: 500 !important; }
+    div[data-baseweb="input"] > div {
         background: #ffffff !important; 
         border: 1px solid #7ab8d4 !important;
         border-radius: 6px !important; 
     }
-    input, .stSelectbox div { font-size: 0.95rem !important; color: #03223a !important; }
+    input { font-size: 0.95rem !important; color: #03223a !important; }
 
     /* Result cards */
     .result-card {
@@ -122,90 +122,94 @@ with st.expander("📋 Conductor & Equipment Reference"):
 
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-# ── INPUTS ──────────────────────────────────────────────────────────
+# ── INPUTS (Wrapped in a Form) ──────────────────────────────────────
 st.markdown("## System Inputs")
 
-col1, col2 = st.columns(2)
-with col1:
-    hv_kv    = st.selectbox("HV system voltage (kV)", options=[33.0, 66.0, 110.0, 132.0, 220.0, 400.0], index=None, placeholder="Select HV...")
-    lv_kv    = st.selectbox("LV system voltage (kV)", options=[11.0, 22.0, 33.0, 66.0], index=None, placeholder="Select LV...")
-    load_mva = st.number_input("Total load demand (MVA)", value=None, min_value=0.1, placeholder="e.g., 40.0")
-with col2:
-    hv_fault_ka = st.number_input("HV Max Fault (kA)", value=None, min_value=1.0, placeholder="e.g., 40.0")
-    lv_fault_ka = st.number_input("LV Max Fault (kA)", value=None, min_value=1.0, placeholder="e.g., 25.0")
+with st.form("input_form", border=False):
+    col1, col2 = st.columns(2)
+    with col1:
+        hv_kv    = st.number_input("HV system voltage (kV)", value=None, min_value=1.0, placeholder="e.g., 110.0")
+        lv_kv    = st.number_input("LV system voltage (kV)", value=None, min_value=1.0, placeholder="e.g., 33.0")
+        tr_mva   = st.number_input("Transformer rating (MVA)", value=None, min_value=0.1, placeholder="e.g., 40.0")
+    with col2:
+        hv_fault_ka = st.number_input("HV Max Fault (kA)", value=None, min_value=1.0, placeholder="e.g., 40.0")
+        lv_fault_ka = st.number_input("LV Max Fault (kA)", value=None, min_value=1.0, placeholder="e.g., 25.0")
+        
+    st.markdown('<br>', unsafe_allow_html=True)
+    # The submit button triggers the calculation
+    submitted = st.form_submit_button("⚡ Calculate Results", type="primary", use_container_width=True)
 
 # ── CONDITIONAL EXECUTION ───────────────────────────────────────────
-# Only run calculations if the user has provided all necessary inputs
-if hv_kv and lv_kv and load_mva and hv_fault_ka and lv_fault_ka:
+if submitted:
+    if hv_kv and lv_kv and tr_mva and hv_fault_ka and lv_fault_ka:
 
-    # ── CALCULATIONS ────────────────────────────────────────────────
-    SQRT3 = math.sqrt(3)
+        # ── CALCULATIONS ────────────────────────────────────────────────
+        SQRT3 = math.sqrt(3)
 
-    hv_fl_current = (load_mva * 1000) / (SQRT3 * hv_kv)
-    lv_fl_current = (load_mva * 1000) / (SQRT3 * lv_kv)
+        hv_fl_current = (tr_mva * 1000) / (SQRT3 * hv_kv)
+        lv_fl_current = (tr_mva * 1000) / (SQRT3 * lv_kv)
 
-    CB_CURRENTS  = [630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000]
-    CB_BREAKING  = [16, 20, 25, 31.5, 40, 50, 63]
-    CT_RATIOS    = [200, 300, 400, 600, 800, 1000, 1200, 1500, 2000, 2500, 3000, 4000]
+        CB_CURRENTS  = [630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000]
+        CB_BREAKING  = [16, 20, 25, 31.5, 40, 50, 63]
+        CT_RATIOS    = [200, 300, 400, 600, 800, 1000, 1200, 1500, 2000, 2500, 3000, 4000]
 
-    def next_standard(val, std_list):
-        for s in std_list:
-            if s >= val:
-                return s
-        return std_list[-1]
+        def next_standard(val, std_list):
+            for s in std_list:
+                if s >= val:
+                    return s
+            return std_list[-1]
 
-    hv_cb_current  = next_standard(hv_fl_current, CB_CURRENTS)
-    lv_cb_current  = next_standard(lv_fl_current, CB_CURRENTS)
-    
-    # CB Breaking is stepped up directly from the user's input fault current
-    hv_cb_breaking = next_standard(hv_fault_ka, CB_BREAKING)
-    lv_cb_breaking = next_standard(lv_fault_ka, CB_BREAKING)
-    
-    hv_ct_ratio    = next_standard(hv_fl_current, CT_RATIOS)
-    lv_ct_ratio    = next_standard(lv_fl_current, CT_RATIOS)
+        hv_cb_current  = next_standard(hv_fl_current, CB_CURRENTS)
+        lv_cb_current  = next_standard(lv_fl_current, CB_CURRENTS)
+        
+        # CB Breaking is stepped up directly from the user's input fault current
+        hv_cb_breaking = next_standard(hv_fault_ka, CB_BREAKING)
+        lv_cb_breaking = next_standard(lv_fault_ka, CB_BREAKING)
+        
+        hv_ct_ratio    = next_standard(hv_fl_current, CT_RATIOS)
+        lv_ct_ratio    = next_standard(lv_fl_current, CT_RATIOS)
 
-    def result_row(label, value, unit):
-        st.markdown(f"""
-        <div class="result-card">
-            <span class="result-label">{label}</span>
-            <span>
-                <span class="result-value">{value}</span>
-                <span class="result-unit">{unit}</span>
-            </span>
-        </div>""", unsafe_allow_html=True)
+        def result_row(label, value, unit):
+            st.markdown(f"""
+            <div class="result-card">
+                <span class="result-label">{label}</span>
+                <span>
+                    <span class="result-value">{value}</span>
+                    <span class="result-unit">{unit}</span>
+                </span>
+            </div>""", unsafe_allow_html=True)
 
-    # ── RESULTS ─────────────────────────────────────────────────────
-    st.markdown('<hr class="divider">', unsafe_allow_html=True)
-    st.markdown("## Results")
+        # ── RESULTS ─────────────────────────────────────────────────────
+        st.markdown('<hr class="divider">', unsafe_allow_html=True)
+        st.markdown("## Results")
 
-    st.markdown("### Transformer")
-    result_row("Required rating", f"{load_mva:.1f}", "MVA")
+        st.markdown("### Transformer")
+        result_row("Transformer rating", f"{tr_mva:.1f}", "MVA")
 
-    st.markdown("### HV Side")
-    result_row("Full-load current", f"{hv_fl_current:.1f}", "A")
-    result_row("User provided fault", f"{hv_fault_ka:.1f}", "kA")
-    result_row("Recommended CB current", f"{hv_cb_current}", "A")
-    result_row("Recommended CB breaking", f"{hv_cb_breaking}", "kA")
-    result_row("Recommended CT ratio", f"{hv_ct_ratio} / 1", "A")
+        st.markdown("### HV Side")
+        result_row("Full-load current", f"{hv_fl_current:.1f}", "A")
+        result_row("User provided fault", f"{hv_fault_ka:.1f}", "kA")
+        result_row("Recommended CB current", f"{hv_cb_current}", "A")
+        result_row("Recommended CB breaking", f"{hv_cb_breaking}", "kA")
+        result_row("Recommended CT ratio", f"{hv_ct_ratio} / 1", "A")
 
-    st.markdown("### LV Side")
-    result_row("Full-load current", f"{lv_fl_current:.1f}", "A")
-    result_row("User provided fault", f"{lv_fault_ka:.1f}", "kA")
-    result_row("Recommended CB current", f"{lv_cb_current}", "A")
-    result_row("Recommended CB breaking", f"{lv_cb_breaking}", "kA")
-    result_row("Recommended CT ratio", f"{lv_ct_ratio} / 1", "A")
+        st.markdown("### LV Side")
+        result_row("Full-load current", f"{lv_fl_current:.1f}", "A")
+        result_row("User provided fault", f"{lv_fault_ka:.1f}", "kA")
+        result_row("Recommended CB current", f"{lv_cb_current}", "A")
+        result_row("Recommended CB breaking", f"{lv_cb_breaking}", "kA")
+        result_row("Recommended CT ratio", f"{lv_ct_ratio} / 1", "A")
 
-    st.markdown('<hr class="divider">', unsafe_allow_html=True)
+        st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-    # ── QUICK SUMMARY FOR MEETING NOTES ─────────────────────────────
-    st.markdown("### 📝 Quick Summary")
-    st.info(
-        f"**Load:** {load_mva} MVA\n\n"
-        f"**HV ({hv_kv} kV):** {hv_cb_current} A CB, {hv_cb_breaking} kA Breaking\n\n"
-        f"**LV ({lv_kv} kV):** {lv_cb_current} A CB, {lv_cb_breaking} kA Breaking"
-    )
+        # ── QUICK SUMMARY FOR MEETING NOTES ─────────────────────────────
+        st.markdown("### 📝 Quick Summary")
+        st.info(
+            f"**Transformer:** {tr_mva} MVA\n\n"
+            f"**HV ({hv_kv} kV):** {hv_cb_current} A CB, {hv_cb_breaking} kA Breaking\n\n"
+            f"**LV ({lv_kv} kV):** {lv_cb_current} A CB, {lv_cb_breaking} kA Breaking"
+        )
 
-else:
-    # Prompt the user to enter data if the fields are empty
-    st.markdown('<div class="prompt-msg">Please fill in all 5 system inputs above to generate sizing results.</div>', unsafe_allow_html=True)
-
+    else:
+        # Prompt the user to enter data if the fields are empty but button was clicked
+        st.markdown('<div class="prompt-msg">Please fill in all 5 system inputs above to generate sizing results.</div>', unsafe_allow_html=True)
