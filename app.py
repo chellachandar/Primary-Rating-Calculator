@@ -136,8 +136,33 @@ with st.form("input_form", border=False):
         lv_fault_ka = st.number_input("LV Max Fault (kA)", value=None, min_value=1.0, placeholder="e.g., 25.0")
         
     st.markdown('<br>', unsafe_allow_html=True)
-    # The submit button triggers the calculation
     submitted = st.form_submit_button("⚡ Calculate Results", type="primary", use_container_width=True)
+
+# ── DYNAMIC LOOKUP LOGIC ────────────────────────────────────────────
+def get_cb_specs(kv):
+    """Returns (Current_Ratings_List, Breaking_kA_List) based on voltage tier"""
+    if kv <= 11:
+        return [630, 1250], [25, 31.5]
+    elif kv <= 33:
+        return [1250, 2000], [25, 31.5, 40]
+    elif kv <= 132:
+        return [1250, 2000, 3150], [31.5, 40]
+    else: # 220kV, 230kV, 400kV
+        # Extended to include 4000A & 63kA as safety nets for higher EHV levels
+        return [1250, 2000, 3150, 4000], [40, 50, 63] 
+
+def get_ct_ratios(kv):
+    """Returns standard CT primary ratings based on voltage tier"""
+    if kv <= 33:
+        return [200, 300, 400, 600, 800, 1000, 1200, 1500, 2000]
+    else:
+        return [200, 400, 600, 800, 1000, 1200, 1500, 2000, 2500, 3000, 4000]
+
+def next_standard(val, std_list):
+    for s in std_list:
+        if s >= val:
+            return s
+    return std_list[-1] # Fallback to max available if exceeded
 
 # ── CONDITIONAL EXECUTION ───────────────────────────────────────────
 if submitted:
@@ -145,34 +170,41 @@ if submitted:
 
         # ── CALCULATIONS ────────────────────────────────────────────────
         SQRT3 = math.sqrt(3)
+        OVERLOAD_MARGIN = 1.25  # 25% margin for forced cooling & short-term overloads
 
+        # 1. Base Full-Load Current
         hv_fl_current = (tr_mva * 1000) / (SQRT3 * hv_kv)
         lv_fl_current = (tr_mva * 1000) / (SQRT3 * lv_kv)
 
-        CB_CURRENTS  = [630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000]
-        CB_BREAKING  = [16, 20, 25, 31.5, 40, 50, 63]
-        CT_RATIOS    = [200, 300, 400, 600, 800, 1000, 1200, 1500, 2000, 2500, 3000, 4000]
+        # 2. Design Current (incorporating overhead)
+        hv_design_current = hv_fl_current * OVERLOAD_MARGIN
+        lv_design_current = lv_fl_current * OVERLOAD_MARGIN
 
-        def next_standard(val, std_list):
-            for s in std_list:
-                if s >= val:
-                    return s
-            return std_list[-1]
-
-        hv_cb_current  = next_standard(hv_fl_current, CB_CURRENTS)
-        lv_cb_current  = next_standard(lv_fl_current, CB_CURRENTS)
+        # 3. Fetch Voltage-Specific Equipment Lists
+        hv_cb_options, hv_brk_options = get_cb_specs(hv_kv)
+        lv_cb_options, lv_brk_options = get_cb_specs(lv_kv)
         
-        # CB Breaking is stepped up directly from the user's input fault current
-        hv_cb_breaking = next_standard(hv_fault_ka, CB_BREAKING)
-        lv_cb_breaking = next_standard(lv_fault_ka, CB_BREAKING)
-        
-        hv_ct_ratio    = next_standard(hv_fl_current, CT_RATIOS)
-        lv_ct_ratio    = next_standard(lv_fl_current, CT_RATIOS)
+        hv_ct_options = get_ct_ratios(hv_kv)
+        lv_ct_options = get_ct_ratios(lv_kv)
 
-        def result_row(label, value, unit):
+        # 4. Equipment Selection based on exact voltage tiers
+        hv_cb_current  = next_standard(hv_design_current, hv_cb_options)
+        lv_cb_current  = next_standard(lv_design_current, lv_cb_options)
+        
+        hv_cb_breaking = next_standard(hv_fault_ka, hv_brk_options)
+        lv_cb_breaking = next_standard(lv_fault_ka, lv_brk_options)
+        
+        hv_ct_ratio    = next_standard(hv_design_current, hv_ct_options)
+        lv_ct_ratio    = next_standard(lv_design_current, lv_ct_options)
+
+        def result_row(label, value, unit, subtext=None):
+            sub_html = f'<div style="font-size: 0.65rem; color: #5a8fa8; margin-top: -2px;">{subtext}</div>' if subtext else ''
             st.markdown(f"""
             <div class="result-card">
-                <span class="result-label">{label}</span>
+                <div>
+                    <div class="result-label">{label}</div>
+                    {sub_html}
+                </div>
                 <span>
                     <span class="result-value">{value}</span>
                     <span class="result-unit">{unit}</span>
@@ -184,20 +216,18 @@ if submitted:
         st.markdown("## Results")
 
         st.markdown("### Transformer")
-        result_row("Transformer rating", f"{tr_mva:.1f}", "MVA")
+        result_row("Transformer base rating", f"{tr_mva:.1f}", "MVA")
 
         st.markdown("### HV Side")
-        result_row("Full-load current", f"{hv_fl_current:.1f}", "A")
-        result_row("User provided fault", f"{hv_fault_ka:.1f}", "kA")
-        result_row("Recommended CB current", f"{hv_cb_current}", "A")
-        result_row("Recommended CB breaking", f"{hv_cb_breaking}", "kA")
+        result_row("Full-load current (ONAN)", f"{hv_fl_current:.0f}", "A")
+        result_row(f"Recommended CB ({hv_kv}kV range)", f"{hv_cb_current}", "A", "Based on 1.25× overload margin")
+        result_row("Recommended CB breaking", f"{hv_cb_breaking}", "kA", f"Steps up from {hv_fault_ka}kA input")
         result_row("Recommended CT ratio", f"{hv_ct_ratio} / 1", "A")
 
         st.markdown("### LV Side")
-        result_row("Full-load current", f"{lv_fl_current:.1f}", "A")
-        result_row("User provided fault", f"{lv_fault_ka:.1f}", "kA")
-        result_row("Recommended CB current", f"{lv_cb_current}", "A")
-        result_row("Recommended CB breaking", f"{lv_cb_breaking}", "kA")
+        result_row("Full-load current (ONAN)", f"{lv_fl_current:.0f}", "A")
+        result_row(f"Recommended CB ({lv_kv}kV range)", f"{lv_cb_current}", "A", "Based on 1.25× overload margin")
+        result_row("Recommended CB breaking", f"{lv_cb_breaking}", "kA", f"Steps up from {lv_fault_ka}kA input")
         result_row("Recommended CT ratio", f"{lv_ct_ratio} / 1", "A")
 
         st.markdown('<hr class="divider">', unsafe_allow_html=True)
@@ -205,11 +235,10 @@ if submitted:
         # ── QUICK SUMMARY FOR MEETING NOTES ─────────────────────────────
         st.markdown("### 📝 Quick Summary")
         st.info(
-            f"**Transformer:** {tr_mva} MVA\n\n"
+            f"**Transformer:** {tr_mva} MVA Base\n\n"
             f"**HV ({hv_kv} kV):** {hv_cb_current} A CB, {hv_cb_breaking} kA Breaking\n\n"
             f"**LV ({lv_kv} kV):** {lv_cb_current} A CB, {lv_cb_breaking} kA Breaking"
         )
 
     else:
-        # Prompt the user to enter data if the fields are empty but button was clicked
         st.markdown('<div class="prompt-msg">Please fill in all 5 system inputs above to generate sizing results.</div>', unsafe_allow_html=True)
