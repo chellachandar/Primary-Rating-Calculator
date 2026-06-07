@@ -1,10 +1,3 @@
-Ah, I see exactly what happened!
-
-The error popped up because the introductory text from my previous message ("Here is the complete, mobile-optimized code...") was accidentally copied into your `app.py` file along with the code itself. Python tried to read my conversational greeting as a command and got confused.
-
-To fix this, completely clear your `app.py` file and paste **only** the code block below.
-
-```python
 import streamlit as st
 import math
 
