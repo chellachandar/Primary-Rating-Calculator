@@ -32,17 +32,17 @@ st.markdown("""
     }
     input { font-size: 0.95rem !important; color: #03223a !important; }
 
-    /* Result cards - more compact */
+    /* Result cards - compact */
     .result-card {
         background: #ffffff; border: 1px solid #7ab8d4;
-        border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.3rem 0;
+        border-radius: 6px; padding: 0.6rem 0.8rem; margin: 0.4rem 0;
         display: flex; justify-content: space-between; align-items: center;
     }
-    .result-label { font-size: 0.8rem; color: #0a2a42; font-weight: 500; }
-    .result-value { font-size: 1.05rem; font-weight: 700; color: #03223a; }
-    .result-unit  { font-size: 0.7rem; color: #7ab8d4; margin-left: 3px; }
+    .result-label { font-size: 0.82rem; color: #0a2a42; font-weight: 500; }
+    .result-value { font-size: 1.1rem; font-weight: 700; color: #03223a; }
+    .result-unit  { font-size: 0.75rem; color: #7ab8d4; margin-left: 3px; }
     
-    /* Scrollable Reference Tables for narrow screens */
+    /* Scrollable Reference Tables */
     .ref-section { 
         background: #f0f8fc; border-radius: 8px; padding: 0.6rem 0.8rem; margin-top: 0.5rem; 
         overflow-x: auto; -webkit-overflow-scrolling: touch;
@@ -54,9 +54,13 @@ st.markdown("""
     
     /* Misc */
     .stExpander { border: 1px solid #7ab8d4 !important; border-radius: 8px !important; background-color: #ffffff; }
-    .divider { border: none; border-top: 1px solid #d0e8f2; margin: 1rem 0 0.8rem; }
+    .divider { border: none; border-top: 1px solid #d0e8f2; margin: 1.5rem 0 1rem; }
     .sub-note { font-size: 0.75rem; color: #5a8fa8; margin: 0.2rem 0 1rem; }
     .prompt-msg { font-size: 0.85rem; color: #f57f17; background: #fff8e1; padding: 0.8rem; border-radius: 8px; border: 1px solid #f9a825; text-align: center; margin-top: 1rem; font-weight: 500; }
+    
+    /* Formula boxes */
+    .formula-box { background: #f9fbfe; border: 1px dashed #7ab8d4; padding: 0.8rem; border-radius: 6px; font-size: 0.85rem; color: #0a2a42; margin-bottom: 0.8rem; }
+    .formula-title { font-weight: 700; color: #03223a; margin-bottom: 0.4rem; font-size: 0.85rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -120,9 +124,9 @@ with st.expander("📋 Conductor & Equipment Reference"):
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown('<hr class="divider">', unsafe_allow_html=True)
+st.markdown('<hr class="divider" style="margin-top: 0.5rem;">', unsafe_allow_html=True)
 
-# ── INPUTS (Wrapped in a Form) ──────────────────────────────────────
+# ── INPUTS ──────────────────────────────────────────────────────────
 st.markdown("## System Inputs")
 
 with st.form("input_form", border=False):
@@ -144,13 +148,12 @@ if submitted:
 
         # ── CALCULATIONS ────────────────────────────────────────────────
         SQRT3 = math.sqrt(3)
-        OVERLOAD_MARGIN = 1.25  # 25% margin for forced cooling & short-term overloads
 
         hv_fl_current = (tr_mva * 1000) / (SQRT3 * hv_kv)
         lv_fl_current = (tr_mva * 1000) / (SQRT3 * lv_kv)
-
-        hv_design_current = hv_fl_current * OVERLOAD_MARGIN
-        lv_design_current = lv_fl_current * OVERLOAD_MARGIN
+        
+        hv_source_mva = SQRT3 * hv_kv * hv_fault_ka
+        lv_source_mva = SQRT3 * lv_kv * lv_fault_ka
 
         def result_row(label, value, unit, subtext=None):
             sub_html = f'<div style="font-size: 0.65rem; color: #5a8fa8; margin-top: -2px;">{subtext}</div>' if subtext else ''
@@ -168,24 +171,37 @@ if submitted:
         with res_col1:
             st.markdown("### HV Side")
             result_row("Full-load current", f"{hv_fl_current:.0f}", "A", "ONAN Base")
-            result_row("Design current", f"{hv_design_current:.0f}", "A", "1.25× Margin")
-            result_row("Max fault current", f"{hv_fault_ka:.1f}", "kA", "User Input")
 
         with res_col2:
             st.markdown("### LV Side")
             result_row("Full-load current", f"{lv_fl_current:.0f}", "A", "ONAN Base")
-            result_row("Design current", f"{lv_design_current:.0f}", "A", "1.25× Margin")
-            result_row("Max fault current", f"{lv_fault_ka:.1f}", "kA", "User Input")
 
         st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-        # ── QUICK SUMMARY FOR MEETING NOTES ─────────────────────────────
-        st.markdown("### 📝 Quick Summary")
-        st.info(
-            f"**TRF:** {tr_mva} MVA\n\n"
-            f"**HV ({hv_kv}kV):** {hv_design_current:.0f}A Design | {hv_fault_ka}kA Fault\n\n"
-            f"**LV ({lv_kv}kV):** {lv_design_current:.0f}A Design | {lv_fault_ka}kA Fault"
-        )
+        # ── KEY FORMULAS ────────────────────────────────────────────────
+        st.markdown("## 🧮 Key Formulas & Math")
+        
+        st.markdown("""
+        <div class="formula-box">
+            <div class="formula-title">1. Source Short-Circuit MVA</div>
+            $$MVA_{SC} = \sqrt{3} \times V_{sys} \times I_{SC}$$
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown(f"**HV:** $\\sqrt{{3}} \\times {hv_kv} \\times {hv_fault_ka} = $ **{hv_source_mva:.1f} MVA**")
+        st.markdown(f"**LV:** $\\sqrt{{3}} \\times {lv_kv} \\times {lv_fault_ka} = $ **{lv_source_mva:.1f} MVA**")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        st.markdown("""
+        <div class="formula-box">
+            <div class="formula-title">2. Transformer Full-Load Current</div>
+            $$I_{FL} = \frac{S_{TRF} \times 1000}{\sqrt{3} \times V_{sys}}$$
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown(f"**HV:** $({tr_mva} \\times 1000) / (\\sqrt{{3}} \\times {hv_kv}) = $ **{hv_fl_current:.0f} A**")
+        st.markdown(f"**LV:** $({tr_mva} \\times 1000) / (\\sqrt{{3}} \\times {lv_kv}) = $ **{lv_fl_current:.0f} A**")
 
     else:
         st.markdown('<div class="prompt-msg">Please fill in all 5 system inputs above to generate sizing results.</div>', unsafe_allow_html=True)
